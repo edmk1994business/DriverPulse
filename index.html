@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <!--
-  DrivePulse - index.html  (Phase 1: Visual & Playful Foundation)
+  DrivePulse - index.html  (Phase 2: real sensors, saved rides, feedback)
 
-  This file is the SKELETON of the app. It only says WHAT is on the page
-  (a header, buttons, a log, a dashboard, the Pit-Stop section).
+  This file is the SKELETON of the app. It only says WHAT is on the page.
 
   - How things LOOK lives in styles.css
-  - How the dashboard BEHAVES lives in app.js
-  - How the Pit-Stop cards BEHAVE lives in playful.js
+  - The main screen's behaviour lives in app.js
+  - Real GPS / motion / screen-awake code lives in sensors.js
+  - Saved rides and the history view live in history.js
+  - The Pit-Stop cards live in playful.js
 
   Anything with an id="..." is a "hook" that a script grabs on to.
-  Empty containers (like #metric-groups) are filled in by the scripts.
+  Empty containers are filled in by the scripts.
 -->
 <html lang="en">
 <head>
@@ -20,17 +21,21 @@
   <!-- Colours Android Chrome's top bar to match the app -->
   <meta name="theme-color" content="#0b0f17">
   <title>DrivePulse</title>
-  <link rel="stylesheet" href="styles.css">
+  <!-- The ?v=3 is a "version stamp". Raise the number (in all five places
+       in this file: here and the four script lines at the bottom) each
+       time you upload new files, so phones fetch the fresh copies
+       instead of reusing old saved ones. -->
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 
 <!--
-  The two data-... notes on <body> are tiny "signs" the scripts update:
-    data-driving = "true" or "false"   (is a drive running?)
-    data-mode    = "passive" or "vision"
-  styles.css reads these signs to change colours. That way the files
-  cooperate without needing to know about each other's code.
+  The data-... notes on <body> are tiny "signs" the scripts update:
+    data-driving  = "true" or "false"        (is a drive running?)
+    data-mode     = "passive" or "vision"
+    data-readings = "none", "live" or "final" (what the dashboard numbers are)
+  styles.css reads these signs to change the look.
 -->
-<body data-driving="false" data-mode="passive">
+<body data-driving="false" data-mode="passive" data-readings="none">
   <main class="shell">
 
     <!-- ===================== THE DASH (main screen) ===================== -->
@@ -49,9 +54,9 @@
         </p>
       </header>
 
-      <!-- ---------- Drive setup: mode selector + Start/Stop ---------- -->
+      <!-- ---------- Drive panel: mode, Start/Stop, live readings ---------- -->
       <section class="panel" aria-labelledby="setup-title">
-        <h2 id="setup-title" class="panel__title">Drive setup</h2>
+        <h2 id="setup-title" class="panel__title">Drive</h2>
 
         <fieldset class="modes" id="mode-selector">
           <legend class="label">Where is the phone?</legend>
@@ -61,7 +66,7 @@
             <span class="mode__body">
               <span class="mode__name">Passive</span>
               <span class="mode__where">Console</span>
-              <span class="mode__desc">Phone lies flat and feels the car's motion.</span>
+              <span class="mode__desc">Phone lies still. GPS and motion do the measuring.</span>
             </span>
           </label>
 
@@ -70,10 +75,13 @@
             <span class="mode__body">
               <span class="mode__name">Vision</span>
               <span class="mode__where">Windshield</span>
-              <span class="mode__desc">Phone on a mount. The camera adds road awareness later.</span>
+              <span class="mode__desc">Phone on a mount. Camera features come in a later phase.</span>
             </span>
           </label>
         </fieldset>
+
+        <!-- Replaces the mode selector while a drive is running (see styles.css) -->
+        <p class="mode-locked" id="mode-locked"></p>
 
         <div class="drive-row">
           <button type="button" id="drive-btn" class="drive-btn" aria-pressed="false">Start Drive</button>
@@ -82,6 +90,29 @@
             <span id="trip-time" class="timer__num">0:00</span>
           </div>
         </div>
+
+        <!-- Live readings: the three numbers worth a glance. "--" means "not measured". -->
+        <div class="live" aria-label="Live trip readings">
+          <div class="live__cell">
+            <span class="live__num" id="live-speed">--</span>
+            <span class="live__label">km/h now</span>
+          </div>
+          <div class="live__cell">
+            <span class="live__num" id="live-distance">--</span>
+            <span class="live__label">km driven</span>
+          </div>
+          <div class="live__cell">
+            <span class="live__num" id="live-avg">--</span>
+            <span class="live__label">avg km/h</span>
+          </div>
+        </div>
+
+        <!-- Sensor status: tells you at a glance which sensors are really working -->
+        <ul class="sensors" id="sensor-chips" aria-label="Sensor status">
+          <li class="sensor" data-sensor="gps" data-state="idle"><span class="sensor__name">GPS</span> <span class="sensor__text">off</span></li>
+          <li class="sensor" data-sensor="motion" data-state="idle"><span class="sensor__name">Motion</span> <span class="sensor__text">off</span></li>
+          <li class="sensor" data-sensor="wake" data-state="idle"><span class="sensor__name">Screen</span> <span class="sensor__text">normal</span></li>
+        </ul>
 
         <p class="note">Set up while parked. Once you roll, eyes on the road. DrivePulse keeps score quietly.</p>
       </section>
@@ -100,7 +131,8 @@
       <section class="panel" aria-labelledby="dash-title">
         <div class="panel__head">
           <h2 id="dash-title" class="panel__title">Dashboard</h2>
-          <span class="tag">Demo values, no sensors yet</span>
+          <!-- app.js changes this label: no drive yet / live / last drive -->
+          <span class="tag" id="readings-tag">No drive yet</span>
         </div>
 
         <div class="hero">
@@ -110,13 +142,13 @@
               <circle class="ring__fill" id="score-ring" cx="60" cy="60" r="52"/>
             </svg>
             <div class="ring__center">
-              <span id="score-num" class="ring__num">0</span>
+              <span id="score-num" class="ring__num">--</span>
               <span class="ring__label">Drive Score</span>
             </div>
           </div>
           <div class="hero__side">
-            <p id="score-word" class="hero__word">Ready</p>
-            <p class="hero__text">One number that blends the scores below. Tap "Why it matters" on any tile to see what it rewards.</p>
+            <p id="score-word" class="hero__word">Ready when you are</p>
+            <p class="hero__text">One number that blends the scores below. No real movement means no score.</p>
           </div>
         </div>
 
@@ -127,12 +159,68 @@
           <h3 class="group__title">Highlight moments</h3>
           <ul id="highlights" class="highlights"></ul>
         </div>
+
+        <!-- Each thing the sensors noticed: what happened and why it was flagged -->
+        <div class="group" data-tone="sky">
+          <h3 class="group__title">Moment timeline</h3>
+          <p class="timeline__key">Forces are in m/s2: about 1 is gentle, 2 is firm, 3 or more is hard.</p>
+          <ul id="moments" class="timeline"></ul>
+        </div>
       </section>
 
+      <button type="button" class="jump-btn jump-btn--sky" data-history-action="open">↓ Trip History &amp; Summary</button>
       <button type="button" class="jump-btn" data-action="go-pitstop">↓ Playful Pit-Stop &amp; Insights</button>
     </div>
 
-    <!-- ===================== PLAYFUL PIT-STOP ===================== -->
+    <!-- ===================== TRIP HISTORY & SUMMARY (history.js) ===================== -->
+    <section id="history" class="history" aria-labelledby="history-title" tabindex="-1">
+      <header>
+        <h2 id="history-title" class="history__title">Trip History &amp; Summary</h2>
+        <p class="history__intro">Every finished drive is saved on this phone, in this browser, until you delete it.</p>
+      </header>
+
+      <!-- Period filter -->
+      <div class="periods" id="history-periods" role="group" aria-label="Period">
+        <button type="button" class="period" data-period="all" aria-pressed="true">All time</button>
+        <button type="button" class="period" data-period="today" aria-pressed="false">Today</button>
+        <button type="button" class="period" data-period="week" aria-pressed="false">Last 7 days</button>
+        <button type="button" class="period" data-period="month" aria-pressed="false">Last 30 days</button>
+        <button type="button" class="period" data-period="custom" aria-pressed="false">Pick dates</button>
+      </div>
+      <div class="range" id="history-range" hidden>
+        <label class="range__field"><span class="label">From</span><input type="date" id="history-from"></label>
+        <label class="range__field"><span class="label">To</span><input type="date" id="history-to"></label>
+      </div>
+
+      <!-- Period summary -->
+      <div class="panel">
+        <h3 class="panel__title">Period summary</h3>
+        <p class="history__period-label" id="history-period-label"></p>
+        <div class="summary" id="history-summary"></div>
+        <ul class="highlights" id="history-period-highlights"></ul>
+      </div>
+
+      <!-- Saved rides -->
+      <div class="panel">
+        <h3 class="panel__title">Saved rides</h3>
+        <div id="history-list" class="rides"></div>
+        <div id="history-clear-row" class="confirm confirm--end"></div>
+      </div>
+
+      <!-- Learned calibration: what your feedback has changed, reset, and the report -->
+      <div class="panel" id="history-tuning-panel">
+        <h3 class="panel__title">Learned calibration</h3>
+        <p class="history__period-label" id="history-tuning-intro"></p>
+        <dl class="facts" id="history-tuning"></dl>
+        <div class="confirm" id="history-tuning-actions"></div>
+        <p class="feedback__result" id="history-report-status" role="status"></p>
+        <textarea id="history-report" class="report" rows="10" readonly hidden aria-label="Tuning report text"></textarea>
+      </div>
+
+      <button type="button" class="jump-btn" data-history-action="to-dash">↑ Back to Dash</button>
+    </section>
+
+    <!-- ===================== PLAYFUL PIT-STOP (playful.js) ===================== -->
     <section id="pitstop" class="pitstop" aria-labelledby="pit-title" tabindex="-1">
       <header class="pitstop__head">
         <h2 id="pit-title" class="pitstop__title">Playful Pit-Stop &amp; Insights</h2>
@@ -162,14 +250,17 @@
     </section>
   </main>
 
-  <footer class="footer">Phase 1: Visual &amp; Playful Foundation. No GPS or camera code yet.</footer>
+  <footer class="footer">Phase 2: real GPS, motion, saved rides and feedback learning. Camera features are not built yet.</footer>
 
   <!--
     Scripts load last. "defer" means: wait until the page above is ready.
-    Later phases add more lines here (sensors.js, vision.js, report.js...).
-    Removing a line removes that feature without touching the others.
+    Each line is one feature. Remove a line and that feature switches off
+    while the rest keeps working. app.js goes last because it uses the others.
+    Later phases add more lines here (vision.js, report.js...).
   -->
-  <script src="playful.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="playful.js?v=3" defer></script>
+  <script src="sensors.js?v=3" defer></script>
+  <script src="history.js?v=3" defer></script>
+  <script src="app.js?v=3" defer></script>
 </body>
 </html>

@@ -1,20 +1,26 @@
 /* =========================================================
-   DrivePulse - app.js  (Phase 1)
+   DrivePulse - app.js  (Phase 2 + moment timeline)
 
-   The "brain" of the main screen:
+   The "brain" of the main screen. It shows things and reacts to taps;
+   it does no measuring itself.
+
      1. METRIC CATALOGUE - the list of everything the dashboard shows
      2. STATE            - what the app remembers right now
      3. STATUS LOG       - writing plain-language messages
-     4. DASHBOARD        - building the tiles and refreshing the numbers
-     5. MODE SELECTOR    - Passive (Console) or Vision (Windshield)
-     6. START / STOP     - the drive button and the trip timer
-     7. DEMO FEED        - PLACEHOLDER: invented numbers so the layout moves
+     4. DASHBOARD        - building the tiles, refreshing the numbers,
+                           and listing the moment timeline
+     5. LIVE STRIP       - speed / distance / average, and the sensor chips
+     6. MODE SELECTOR    - Passive (Console) or Vision (Windshield)
+     7. START / STOP     - the drive button, trip timer and saving the ride
      8. START-UP         - runs once when the page opens
 
-   IMPORTANT: there is NO real GPS, motion or camera code in here.
-   Section 7 makes up numbers. In Phase 2 a new file (sensors.js)
-   will supply real readings and section 7 gets deleted. Nothing
-   else in this file needs to change for that.
+   Phase 2 change: the invented "demo feed" is gone. Every number now
+   comes from sensors.js (real GPS and motion). When there is no real
+   reading, a tile shows "--" instead of a made-up value.
+
+   This file talks to two helpers, if they are loaded:
+     DrivePulseSensors (sensors.js)  - the real readings
+     DrivePulseHistory (history.js)  - saving finished rides
    ========================================================= */
 (function () {
   'use strict';
@@ -24,7 +30,8 @@
      itself to match. No HTML editing needed.
 
      Each metric has:
-       id    - short unique name
+       id    - short unique name. It must match the name sensors.js
+               uses for the same reading (see "RESULTS" in sensors.js).
        group - which coloured group it sits in (see GROUPS)
        name  - the title on the tile
        kind  - how to show the number:
@@ -33,8 +40,8 @@
                  'gap'     seconds, one decimal
        hint  - one short line under the number
        why   - "Why it matters" in real driving
-       needs - 'vision' if it only works with the camera (optional)
-       demo  - numbers used ONLY by the demo feed in section 7 */
+       needs - 'vision' marks a camera metric. Those are PLACEHOLDERS
+               until the camera phase is built. */
 
   const GROUPS = [
     { id: 'smooth', title: 'Smooth inputs',       tone: 'mint' },
@@ -49,93 +56,95 @@
     {
       id: 'smoothness', group: 'smooth', name: 'Smoothness', kind: 'score',
       hint: 'gentle pedals and steering',
-      why: 'Smooth inputs keep the tyres gripping, passengers comfortable and fuel use down. Every other score builds on this one.',
-      demo: { start: 82, min: 55, max: 98, step: 1.5 }
+      why: 'Smooth inputs keep the tyres gripping, passengers comfortable and fuel use down. Every other score builds on this one.'
     },
     {
       id: 'gentleStops', group: 'smooth', name: 'Gentle stop ratio', kind: 'percent',
       hint: 'stops that ended softly',
-      why: 'A soft stop means you saw it coming early. It also gives the driver behind you more time to react.',
-      demo: { start: 78, min: 40, max: 100, step: 1.2 }
+      why: 'A soft stop means you saw it coming early. It also gives the driver behind you more time to react.'
     },
     {
       id: 'easyLaunches', group: 'smooth', name: 'Easy launch ratio', kind: 'percent',
       hint: 'calm pull-aways from a standstill',
-      why: 'Pulling away gently saves fuel and tyres, and keeps you in control if the road is wet or someone steps out.',
-      demo: { start: 85, min: 50, max: 100, step: 1.2 }
+      why: 'Pulling away gently saves fuel and tyres, and keeps you in control if the road is wet or someone steps out.'
     },
 
     /* --- Flow and rhythm --- */
     {
       id: 'cruiseStreak', group: 'flow', name: 'Steady cruise streak', kind: 'time',
       hint: 'longest stretch at an even speed',
-      why: 'An even speed makes you predictable to others and is where a car is most efficient. Long streaks show a relaxed, settled drive.',
-      demo: { start: 222 }
+      why: 'An even speed makes you predictable to others and is where a car is most efficient. Long streaks show a relaxed, settled drive.'
     },
     {
       id: 'speedConsistency', group: 'flow', name: 'Speed consistency', kind: 'score',
       hint: 'how little your speed wobbles',
-      why: 'Speeding up and slowing down for no reason tires you out and sends ripples back through the traffic behind you.',
-      demo: { start: 76, min: 45, max: 97, step: 1.5 }
+      why: 'Speeding up and slowing down for no reason tires you out and sends ripples back through the traffic behind you.'
     },
     {
       id: 'tripFlow', group: 'flow', name: 'Trip flow', kind: 'percent',
-      hint: 'time spent rolling, not stop-start',
-      why: 'Rolling slowly beats stopping and sprinting. High flow usually means good gaps and looking far ahead.',
-      demo: { start: 71, min: 35, max: 96, step: 1.2 }
+      hint: 'time spent rolling, not standing',
+      why: 'Rolling slowly beats stopping and sprinting. High flow usually means good gaps and looking far ahead.'
     },
 
     /* --- Corners and composure --- */
     {
       id: 'corneringPoise', group: 'poise', name: 'Cornering poise', kind: 'score',
       hint: 'tidy, unhurried turns',
-      why: 'Slowing before a bend and steering in one clean sweep keeps the car balanced and leaves grip in reserve for surprises.',
-      demo: { start: 80, min: 50, max: 98, step: 1.5 }
+      why: 'Slowing before a bend and steering in one clean sweep keeps the car balanced and leaves grip in reserve for surprises.'
     },
     {
       id: 'calmStreak', group: 'poise', name: 'Calm streak', kind: 'time',
-      hint: 'time since the last sharp moment',
-      why: 'A growing calm streak shows you are staying ahead of the traffic instead of reacting at the last second.',
-      demo: { start: 370 }
+      hint: 'longest run with no sharp moment',
+      why: 'A long calm streak shows you are staying ahead of the traffic instead of reacting at the last second.'
     },
 
     /* --- Reading the road --- */
     {
       id: 'anticipation', group: 'aware', name: 'Anticipation', kind: 'percent',
-      hint: 'slow-downs started by lifting off early',
-      why: 'Easing off early for a red light or a queue is the clearest sign you are reading the road. It saves brakes and fuel too.',
-      demo: { start: 64, min: 30, max: 95, step: 1.5 }
+      hint: 'slow-downs done gradually, by easing off early',
+      why: 'Easing off early for a red light or a queue is the clearest sign you are reading the road. It saves brakes and fuel too.'
     },
     {
       id: 'followSpace', group: 'aware', name: 'Following space', kind: 'gap', needs: 'vision',
       hint: 'time gap to the car ahead',
-      why: 'Space is time to react. Around three seconds in the dry, and more in rain, turns most surprises into non-events.',
-      demo: { start: 2.8, min: 1.2, max: 4.5, step: 0.15 }
+      why: 'Space is time to react. Around three seconds in the dry, and more in rain, turns most surprises into non-events.'
     },
     {
       id: 'laneSteadiness', group: 'aware', name: 'Lane steadiness', kind: 'score', needs: 'vision',
       hint: 'holding a clean line in your lane',
-      why: 'Drifting inside the lane can be an early sign of tiredness or distraction. A steady line keeps you predictable.',
-      demo: { start: 88, min: 55, max: 99, step: 1.2 }
+      why: 'Drifting inside the lane can be an early sign of tiredness or distraction. A steady line keeps you predictable.'
     },
 
     /* --- Watch-outs --- */
     {
       id: 'sharpMoments', group: 'watch', name: 'Sharp moments', kind: 'count',
-      hint: 'hard brakes, jabs and swerves (lower is better)',
-      why: 'Each one is worth a second look: was I too close, too fast, or looking too near? No blame, just clues.',
-      demo: { start: 2 }
+      hint: 'hard brakes, jabs and sharp turns (lower is better)',
+      why: 'Each one is worth a second look: was I too close, too fast, or looking too near? No blame, just clues.'
     },
     {
       id: 'stopGoBursts', group: 'watch', name: 'Stop-and-go bursts', kind: 'count',
-      hint: 'sprint-then-brake cycles (lower is better)',
-      why: 'Sprinting to the next queue gains nothing and wears out the car and you. Spotting these helps you leave a rolling gap instead.',
-      demo: { start: 3 }
+      hint: 'pull away, then stop again within seconds (lower is better)',
+      why: 'Sprinting to the next queue gains nothing and wears out the car and you. Spotting these helps you leave a rolling gap instead.'
     }
   ];
 
-  const MAX_LOG_LINES = 40;         // older messages drop off the bottom
+  // The Drive Score blends these six scores. The weights add up to 1.
+  // If a score has no data yet, the rest share its weight.
+  const SCORE_PARTS = [
+    { id: 'smoothness',       weight: 0.25 },
+    { id: 'anticipation',     weight: 0.20 },
+    { id: 'gentleStops',      weight: 0.15 },
+    { id: 'speedConsistency', weight: 0.15 },
+    { id: 'corneringPoise',   weight: 0.15 },
+    { id: 'tripFlow',         weight: 0.10 }
+  ];
+
+  const MAX_LOG_LINES = 60;         // older messages drop off the bottom
   const RING_LENGTH = 326.73;       // outline length of the score ring (matches styles.css)
+
+  // The two helper files. Either can be missing; the app copes.
+  const Sensors = window.DrivePulseSensors || null;
+  const History = window.DrivePulseHistory || null;
 
 
   /* ---------- 2. STATE ----------
@@ -144,10 +153,12 @@
   const state = {
     mode: 'passive',     // 'passive' or 'vision'
     driving: false,      // is a drive running?
+    readings: 'none',    // 'none' (no drive yet), 'live', or 'final' (last drive)
     startedAt: 0,        // clock reading when Start was pressed
     tickId: null,        // handle for the once-a-second timer
-    currentCruise: 0,    // seconds in the cruise streak happening right now
-    values: {}           // metric id -> its current number
+    values: {},          // metric id -> number, or null when not measured
+    highlights: [],      // highlight moments from sensors.js
+    moments: []          // the moment timeline from sensors.js
   };
 
   // Grab the page elements once, so we do not search for them every second.
@@ -156,10 +167,17 @@
     pillText: document.getElementById('drive-pill-text'),
     tripTime: document.getElementById('trip-time'),
     modeInputs: Array.from(document.querySelectorAll('input[name="mode"]')),
+    modeLocked: document.getElementById('mode-locked'),
+    liveSpeed: document.getElementById('live-speed'),
+    liveDistance: document.getElementById('live-distance'),
+    liveAvg: document.getElementById('live-avg'),
+    sensorChips: document.getElementById('sensor-chips'),
     log: document.getElementById('log'),
     logClear: document.getElementById('log-clear'),
+    readingsTag: document.getElementById('readings-tag'),
     groups: document.getElementById('metric-groups'),
     highlights: document.getElementById('highlights'),
+    moments: document.getElementById('moments'),
     scoreNum: document.getElementById('score-num'),
     scoreRing: document.getElementById('score-ring'),
     scoreWord: document.getElementById('score-word')
@@ -172,6 +190,10 @@
 
   function clamp(number, low, high) {
     return Math.min(high, Math.max(low, number));
+  }
+
+  function isNumber(value) {
+    return typeof value === 'number' && isFinite(value);
   }
 
   // 95 seconds -> "1:35"
@@ -237,6 +259,13 @@
         value.append(num, unit);
         tile.append(make('h4', 'metric__name', metric.name), value, hint);
 
+        // Camera metrics carry a visible "Placeholder" badge so they are
+        // never mistaken for a live reading.
+        if (metric.needs === 'vision') {
+          tile.classList.add('is-placeholder');
+          tile.append(make('p', 'metric__badge', 'Placeholder'));
+        }
+
         // Only 0-100 style metrics get a progress bar.
         let fill = null;
         if (metric.kind === 'score' || metric.kind === 'percent') {
@@ -261,7 +290,9 @@
   }
 
   // Turns a raw number into what the tile should display.
+  // A missing reading becomes "--".
   function formatMetric(metric, value) {
+    if (!isNumber(value)) return { num: '--', unit: '' };
     if (metric.kind === 'score')   return { num: String(Math.round(value)), unit: '/100' };
     if (metric.kind === 'percent') return { num: String(Math.round(value)), unit: '%' };
     if (metric.kind === 'time')    return { num: formatClock(value), unit: 'min' };
@@ -269,41 +300,54 @@
     return { num: String(Math.round(value)), unit: '' };
   }
 
-  // The Drive Score: a weighted blend of six scores, minus a little
-  // for each sharp moment. The weights add up to 1.
-  function driveScore() {
-    const v = state.values;
-    const blend =
-      v.smoothness * 0.25 +
-      v.anticipation * 0.20 +
-      v.gentleStops * 0.15 +
-      v.speedConsistency * 0.15 +
-      v.corneringPoise * 0.15 +
-      v.tripFlow * 0.10;
-    const penalty = Math.min(v.sharpMoments * 2, 10);
-    return clamp(Math.round(blend - penalty), 0, 100);
+  // The same thing as one piece of text, for saving with a ride.
+  function metricText(metric, value) {
+    if (metric.needs === 'vision') return 'not built yet';
+    if (!isNumber(value)) return 'not measured';
+    const shown = formatMetric(metric, value);
+    if (metric.kind === 'time') return shown.num;
+    if (metric.kind === 'gap') return shown.num + ' sec';
+    return shown.num + shown.unit;
+  }
+
+  // The Drive Score: a weighted blend of up to six scores, minus a little
+  // for each sharp moment. No real movement = no score.
+  function driveScore(values) {
+    if (!isNumber(values.smoothness)) return null;
+    let total = 0;
+    let weight = 0;
+    SCORE_PARTS.forEach(function (part) {
+      if (isNumber(values[part.id])) {
+        total += values[part.id] * part.weight;
+        weight += part.weight;
+      }
+    });
+    const penalty = Math.min((values.sharpMoments || 0) * 2, 10);
+    return clamp(Math.round(total / weight - penalty), 0, 100);
   }
 
   function scoreWord(score) {
+    if (score === null) {
+      return state.driving ? 'Waiting for movement' : (state.readings === 'final' ? 'No score for that drive' : 'Ready when you are');
+    }
     if (score >= 90) return 'Silky';
     if (score >= 80) return 'Smooth operator';
     if (score >= 70) return 'Settling in nicely';
     return 'Room to relax';
   }
 
-  // Highlight moments. For now these are summaries of the numbers above.
-  // Later (report phase) they become real, time-stamped moments from a trip.
   function paintHighlights() {
-    const v = state.values;
-    const items = [
-      { emoji: '🏁', title: 'Longest steady cruise', text: formatClock(v.cruiseStreak) + ' at an even pace' },
-      { emoji: '🪶', title: 'Soft landings', text: Math.round(v.gentleStops) + '% of stops ended gently' },
-      { emoji: '🌀', title: 'Corner composure', text: 'Poise holding at ' + Math.round(v.corneringPoise) + ' out of 100' },
-      { emoji: '🌿', title: 'Calm run', text: formatClock(v.calmStreak) + ' without a sharp moment' }
-    ];
-
     els.highlights.replaceChildren();
-    items.forEach(function (item) {
+
+    if (state.highlights.length === 0) {
+      const empty = state.driving
+        ? 'Highlights appear once the car has been moving for a little while.'
+        : 'Highlights from a drive appear here.';
+      els.highlights.append(make('li', 'empty', empty));
+      return;
+    }
+
+    state.highlights.forEach(function (item) {
       const row = make('li', 'highlight');
       const emoji = make('span', 'highlight__emoji', item.emoji);
       emoji.setAttribute('aria-hidden', 'true');
@@ -314,38 +358,109 @@
     });
   }
 
-  // Refreshes every number on the dashboard from state.values.
+  // The moment timeline: each thing the sensors noticed, newest on top,
+  // with what happened, why it was flagged, and a tip.
+  // (Feedback buttons for these live in Trip History, on the saved ride.)
+  function paintMoments() {
+    if (!els.moments) return;
+    els.moments.replaceChildren();
+
+    if (state.moments.length === 0) {
+      const empty = state.driving
+        ? 'Moments appear here as they happen: hard brakes, quick launches, brisk corners, rough bumps and long steady stretches.'
+        : (state.readings === 'final' ? 'No individual moments were logged on that drive.' : 'Moments from a drive appear here, each with what happened and why it was flagged.');
+      els.moments.append(make('li', 'empty', empty));
+      return;
+    }
+
+    state.moments.slice().reverse().forEach(function (moment) {
+      const card = make('li', 'moment');
+      card.dataset.level = moment.level;      // styles.css colours it: sharp, firm, road, good
+
+      const d = new Date(moment.at);
+      const when = d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() +
+        (moment.durationSec ? ', lasted ' + formatClock(moment.durationSec) : '');
+      const head = make('div', 'moment__head');
+      head.append(make('span', 'moment__label', moment.label), make('span', 'moment__time', when));
+
+      const why = make('p', 'moment__why');
+      why.append(make('strong', '', 'Why it was flagged: '), moment.why);
+      const tip = make('p', 'moment__tip');
+      tip.append(make('strong', '', 'Tip: '), moment.tip);
+
+      card.append(head, make('p', 'moment__what', moment.what), why, tip);
+      els.moments.append(card);
+    });
+
+    if (!state.driving) {
+      els.moments.append(make('li', 'empty', 'To rate these moments, open this ride in Trip History below.'));
+    }
+  }
+
+  // Refreshes the whole dashboard from state.values.
   function paint() {
+    // The label in the corner says what kind of numbers these are.
+    document.body.dataset.readings = state.readings;
+    els.readingsTag.textContent =
+      state.readings === 'live' ? 'Live sensor readings' :
+      state.readings === 'final' ? 'Last drive, final numbers' : 'No drive yet';
+
     METRICS.forEach(function (metric) {
       const tile = tiles[metric.id];
-      const locked = metric.needs === 'vision' && state.mode !== 'vision';
-      tile.root.classList.toggle('is-locked', locked);
 
-      if (locked) {
+      if (metric.needs === 'vision') {
         tile.num.textContent = '--';
         tile.unit.textContent = '';
-        tile.hint.textContent = 'Needs Vision mode (camera)';
+        tile.hint.textContent = state.mode === 'vision'
+          ? 'Camera feature, not built yet'
+          : 'Needs Vision mode (camera, not built yet)';
         if (tile.fill) tile.fill.style.width = '0%';
         return;
       }
 
-      const shown = formatMetric(metric, state.values[metric.id]);
+      const value = state.values[metric.id];
+      const shown = formatMetric(metric, value);
+      tile.root.classList.toggle('is-empty', !isNumber(value));
       tile.num.textContent = shown.num;
       tile.unit.textContent = shown.unit;
       tile.hint.textContent = metric.hint;
-      if (tile.fill) tile.fill.style.width = clamp(state.values[metric.id], 0, 100) + '%';
+      if (tile.fill) tile.fill.style.width = (isNumber(value) ? clamp(value, 0, 100) : 0) + '%';
     });
 
-    const score = driveScore();
-    els.scoreNum.textContent = score;
+    const score = driveScore(state.values);
+    els.scoreNum.textContent = score === null ? '--' : score;
     els.scoreWord.textContent = scoreWord(score);
-    els.scoreRing.style.strokeDashoffset = RING_LENGTH * (1 - score / 100);
+    els.scoreRing.style.strokeDashoffset = RING_LENGTH * (1 - (score === null ? 0 : score) / 100);
 
     paintHighlights();
+    paintMoments();
   }
 
 
-  /* ---------- 5. MODE SELECTOR ---------- */
+  /* ---------- 5. LIVE STRIP ---------- */
+
+  // The three big numbers under the Start button.
+  function paintLive(snapshot) {
+    const speed = snapshot ? snapshot.speedKmh : null;
+    const distance = snapshot ? snapshot.distanceKm : null;
+    const avg = snapshot ? snapshot.avgSpeedKmh : null;
+
+    els.liveSpeed.textContent = isNumber(speed) ? Math.round(speed) : '--';
+    els.liveDistance.textContent = isNumber(distance) ? (distance < 10 ? distance.toFixed(2) : distance.toFixed(1)) : '--';
+    els.liveAvg.textContent = isNumber(avg) ? Math.round(avg) : '--';
+  }
+
+  // sensors.js calls this whenever a sensor changes state.
+  // state is one of: idle, waiting, live, weak, off (styles.css colours them).
+  function paintSensor(name, sensorState, text) {
+    const chip = els.sensorChips.querySelector('[data-sensor="' + name + '"]');
+    if (!chip) return;
+    chip.dataset.state = sensorState;
+    chip.querySelector('.sensor__text').textContent = text;
+  }
+
+
+  /* ---------- 6. MODE SELECTOR ---------- */
 
   function setMode(mode) {
     state.mode = mode;
@@ -353,106 +468,157 @@
     paint();
 
     if (mode === 'vision') {
-      log('Vision (Windshield) selected. Camera metrics show demo values for now; the real camera arrives in a later phase.', 'info');
+      log('Vision (Windshield) selected. The camera is not built yet, so a drive in this mode is measured with GPS and motion only.', 'info');
     } else {
-      log('Passive (Console) selected. Motion-based metrics only.', 'info');
+      log('Passive (Console) selected. GPS and motion do the measuring.', 'info');
     }
   }
 
 
-  /* ---------- 6. START / STOP ---------- */
+  /* ---------- 7. START / STOP ---------- */
 
   function startDrive() {
     state.driving = true;
+    state.readings = 'live';
     state.startedAt = Date.now();
-    state.currentCruise = 0;
-
-    // A new trip starts its counters and streaks from zero.
-    METRICS.forEach(function (metric) {
-      const fresh = metric.kind === 'time' || metric.kind === 'count';
-      state.values[metric.id] = fresh ? 0 : metric.demo.start;
-    });
+    state.values = {};
+    state.highlights = [];
+    state.moments = [];
 
     document.body.dataset.driving = 'true';
     els.driveBtn.textContent = 'Stop Drive';
     els.driveBtn.setAttribute('aria-pressed', 'true');
     els.pillText.textContent = 'Driving';
     els.tripTime.textContent = '0:00';
+    els.modeLocked.textContent = modeLabel() + ' mode, locked until you stop.';
     els.modeInputs.forEach(function (input) { input.disabled = true; });
 
-    log('Drive started in ' + modeLabel() + ' mode. Mode is locked until you stop.', 'good');
-    log('Demo feed running. These numbers are invented, not measured.', 'warn');
+    log('Drive started in ' + modeLabel() + ' mode.', 'good');
+    if (state.mode === 'vision') {
+      log('Vision mode: camera features are not built yet. This drive uses GPS and motion only.', 'warn');
+    }
 
+    // Must happen right here, inside the button tap, so the browser
+    // allows the permission questions.
+    if (Sensors) {
+      Sensors.start({ onLog: log, onStatus: paintSensor });
+    } else {
+      log('sensors.js is not loaded, so only the trip timer runs. Nothing is being measured.', 'alert');
+    }
+
+    paintLive(null);
     paint();
     state.tickId = setInterval(tick, 1000);   // call tick() once every second
+  }
+
+  // Runs once a second while driving: asks sensors.js for the latest numbers.
+  function tick() {
+    els.tripTime.textContent = formatClock((Date.now() - state.startedAt) / 1000);
+    if (!Sensors) return;
+    const snapshot = Sensors.read();
+    state.values = snapshot.metrics;
+    state.highlights = snapshot.highlights;
+    state.moments = snapshot.moments;
+    paintLive(snapshot);
+    paint();
   }
 
   function stopDrive() {
     clearInterval(state.tickId);
     state.tickId = null;
-    state.driving = false;
+    const endedAt = Date.now();
+    const durationSec = Math.round((endedAt - state.startedAt) / 1000);
 
+    // Collect the final numbers before anything is reset.
+    const final = Sensors ? Sensors.stop() : null;
+    if (final) {
+      state.values = final.metrics;
+      state.highlights = final.highlights;
+      state.moments = final.moments;
+    }
+
+    state.driving = false;
+    state.readings = 'final';
     document.body.dataset.driving = 'false';
     els.driveBtn.textContent = 'Start Drive';
     els.driveBtn.setAttribute('aria-pressed', 'false');
     els.pillText.textContent = 'Parked';
+    els.tripTime.textContent = formatClock(durationSec);
     els.modeInputs.forEach(function (input) { input.disabled = false; });
 
-    const duration = formatClock((Date.now() - state.startedAt) / 1000);
-    log('Drive stopped after ' + duration + '. Demo Drive Score: ' + driveScore() + '.', 'good');
-    log('Parked? The Pit-Stop cards are just below the dashboard.', 'fun');
-  }
-
-  // Runs once a second while driving.
-  function tick() {
-    els.tripTime.textContent = formatClock((Date.now() - state.startedAt) / 1000);
-    demoFeedStep();
+    paintLive(final);
     paint();
+
+    const score = driveScore(state.values);
+    if (score !== null) {
+      log('Drive stopped after ' + formatClock(durationSec) + '. ' + final.distanceKm.toFixed(2) + ' km, Drive Score ' + score + '.', 'good');
+    } else {
+      log('Drive stopped after ' + formatClock(durationSec) + '. No real movement was measured, so there are no scores.', 'warn');
+    }
+
+    saveRide(final, endedAt, durationSec, score);
   }
 
-
-  /* ---------- 7. DEMO FEED (PLACEHOLDER) ----------
-     Invents believable numbers so we can watch the dashboard move.
-     >>> Phase 2: delete this section. sensors.js will write real
-         readings into state.values instead. <<< */
-
-  function demoFeedStep() {
-    const v = state.values;
-
-    // Scores drift up and down a little each second.
-    METRICS.forEach(function (metric) {
-      if (metric.kind === 'score' || metric.kind === 'percent' || metric.kind === 'gap') {
-        const nudge = (Math.random() - 0.5) * 2 * metric.demo.step;
-        v[metric.id] = clamp(v[metric.id] + nudge, metric.demo.min, metric.demo.max);
-      }
-    });
-
-    // The cruise streak grows, and now and then "traffic" breaks it.
-    state.currentCruise += 1;
-    if (Math.random() < 0.04) state.currentCruise = 0;
-    if (state.currentCruise > v.cruiseStreak) v.cruiseStreak = state.currentCruise;
-    if (state.currentCruise === 30) log('Demo: cruise streak passed 0:30. Nice and steady.', 'good');
-
-    // The calm streak grows until a pretend sharp moment resets it.
-    v.calmStreak += 1;
-    if (Math.random() < 0.02) {
-      v.sharpMoments += 1;
-      v.calmStreak = 0;
-      log('Demo: sharp moment noted. Calm streak restarts.', 'alert');
+  // Packs the finished drive into one record and hands it to history.js.
+  function saveRide(final, endedAt, durationSec, score) {
+    if (!History) {
+      log('history.js is not loaded, so this ride was not saved.', 'warn');
+      return;
     }
-    if (Math.random() < 0.015) {
-      v.stopGoBursts += 1;
-      log('Demo: stop-and-go burst spotted.', 'warn');
+
+    const groupOf = {};
+    GROUPS.forEach(function (group) { groupOf[group.id] = group; });
+
+    const ride = {
+      // A unique ID: the start time plus a few random letters.
+      id: 'ride-' + state.startedAt.toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+      version: 2,
+      startedAt: state.startedAt,
+      endedAt: endedAt,
+      durationSec: durationSec,
+      mode: state.mode,
+      distanceKm: final ? final.distanceKm : null,
+      movingSec: final ? Math.round(final.movingSec) : 0,
+      avgSpeedKmh: final ? final.avgSpeedKmh : null,
+      topSpeedKmh: final ? final.topSpeedKmh : null,
+      driveScore: score,
+      // Names and text are saved WITH the ride, so an old ride still reads
+      // correctly even if the catalogue above changes later.
+      metrics: METRICS.map(function (metric) {
+        const value = isNumber(state.values[metric.id]) ? state.values[metric.id] : null;
+        return {
+          id: metric.id,
+          name: metric.name,
+          group: groupOf[metric.group].title,
+          tone: groupOf[metric.group].tone,
+          value: metric.needs === 'vision' ? null : value,
+          text: metricText(metric, value)
+        };
+      }),
+      highlights: state.highlights,
+      // The moment timeline. history.js later adds your feedback to each one.
+      moments: final ? final.moments : [],
+      // The thresholds this drive was judged with (factory or learned).
+      tune: final ? final.tune : null,
+      sensors: {
+        gps: final ? final.hadGps : false,
+        motion: final ? final.hadMotion : false,
+        gpsGaps: final ? final.gpsGaps : 0,
+        interruptions: final ? final.interruptions : 0,
+        hiddenSec: final ? Math.round(final.hiddenSec) : 0
+      }
+    };
+
+    const result = History.saveRide(ride);
+    if (result.ok) {
+      log('Ride saved to Trip History (' + result.count + (result.count === 1 ? ' ride' : ' rides') + ' saved). It stays until you delete it.', 'fun');
+    } else {
+      log('Could not save this ride: ' + result.error + '.', 'alert');
     }
   }
 
 
   /* ---------- 8. START-UP ---------- */
-
-  // Fill the dashboard with sample values so the layout is easy to inspect.
-  METRICS.forEach(function (metric) {
-    state.values[metric.id] = metric.demo.start;
-  });
 
   buildDashboard();
   paint();
@@ -472,6 +638,9 @@
     log('Log cleared.', 'info');
   });
 
-  log('Phase 1 preview: the dashboard shows sample values so we can check the layout.', 'warn');
+  if (History) {
+    const saved = History.countRides();
+    if (saved > 0) log(saved + (saved === 1 ? ' saved ride' : ' saved rides') + ' loaded from this phone. See Trip History below.', 'fun');
+  }
   log('DrivePulse is ready. Choose where the phone sits, then press Start Drive.', 'info');
 })();

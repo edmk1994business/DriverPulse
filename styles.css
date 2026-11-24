@@ -1,12 +1,14 @@
 /* =========================================================
-   DrivePulse - styles.css  (Phase 1)
+   DrivePulse - styles.css  (Phase 2)
 
    This file controls how everything LOOKS. No behaviour here.
 
    How to read it:
    1. THEME      - every colour and size lives here, in one place
    2. BASICS     - page-wide defaults
-   3. DASH       - header, setup panel, log, dashboard, metric tiles
+   3. DASH       - header, drive panel, live strip, log, dashboard tiles
+      HISTORY    - period filter, summary tiles, saved rides,
+                   moment timeline, feedback buttons, calibration
    4. PIT-STOP   - sticky jump bar and the playful cards
    5. BIG SCREENS and REDUCED MOTION
 
@@ -174,6 +176,34 @@ body[data-driving="true"] .drive-btn { background: var(--coral); color: #3d0914;
 
 .note { margin-top: 12px; font-size: 0.82rem; color: var(--muted); }
 
+/* Live strip: the three numbers worth a glance while driving */
+.live { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.live__cell { padding: 10px 6px; text-align: center; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.live__num { display: block; font-size: 1.7rem; font-weight: 750; line-height: 1.1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.live__label { display: block; margin-top: 2px; font-size: 0.74rem; color: var(--muted); }
+/* Numbers light up only while a drive is really running */
+body[data-driving="true"] .live__num { color: var(--sky); font-size: 2rem; }
+
+/* Sensor status chips: grey = off, amber = waiting or weak, mint = working, coral = blocked */
+.sensors { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sensor {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 0.78rem; color: var(--muted);
+}
+.sensor::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tone, var(--muted)); }
+.sensor__name { font-weight: 650; color: var(--text-soft); }
+.sensor[data-state="waiting"], .sensor[data-state="weak"] { --tone: var(--amber); }
+.sensor[data-state="live"] { --tone: var(--mint); border-color: color-mix(in srgb, var(--mint) 45%, var(--line)); }
+.sensor[data-state="off"]  { --tone: var(--coral); border-color: color-mix(in srgb, var(--coral) 45%, var(--line)); }
+
+/* While driving: hide the setup choices so Stop, time and speed sit at the top */
+.mode-locked { display: none; margin-top: 10px; font-size: 0.86rem; color: var(--muted); }
+body[data-driving="true"] .mode-locked { display: block; }
+body[data-driving="true"] .modes,
+body[data-driving="true"] .note { display: none; }
+body[data-driving="true"] .timer__num { font-size: 2rem; }
+
 /* Status log */
 .log {
   margin-top: 10px; max-height: 176px; overflow-y: auto;
@@ -234,10 +264,26 @@ body[data-driving="true"] .drive-btn { background: var(--coral); color: #3d0914;
 .metric__why summary { padding: 4px 0; font-size: 0.78rem; font-weight: 600; color: var(--text-soft); cursor: pointer; }
 .metric__why p { margin-top: 4px; font-size: 0.8rem; line-height: 1.45; color: var(--text-soft); }
 
-/* A camera-only metric while Passive mode is selected */
-.metric.is-locked { border-style: dashed; }
-.metric.is-locked .metric__num { color: var(--muted); }
-.metric.is-locked .meter { display: none; }
+/* A tile with no real reading yet shows "--" in grey, never a made-up number */
+.metric.is-empty .metric__num { color: var(--muted); }
+
+/* Camera metrics are placeholders until the camera phase: dashed border + badge */
+.metric.is-placeholder { border-style: dashed; }
+.metric.is-placeholder .metric__num { color: var(--muted); }
+.metric.is-placeholder .meter { display: none; }
+.metric__badge {
+  display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 999px;
+  border: 1px dashed var(--muted); color: var(--muted);
+  font-size: 0.7rem; font-weight: 600;
+}
+
+/* The label in the dashboard corner: what kind of numbers are these? */
+body[data-readings="none"] .tag  { border-color: var(--muted); color: var(--muted); }
+body[data-readings="live"] .tag  { border-style: solid; border-color: var(--mint); color: var(--mint); }
+body[data-readings="final"] .tag { border-style: solid; border-color: var(--sky); color: var(--sky); }
+
+/* Empty-state sentences ("nothing here yet") */
+.empty { padding: 10px 2px; font-size: 0.86rem; color: var(--muted); }
 
 /* Highlight moments */
 .highlights { margin-top: 10px; display: grid; gap: 8px; }
@@ -253,6 +299,132 @@ body[data-driving="true"] .drive-btn { background: var(--coral); color: #3d0914;
   background: color-mix(in srgb, var(--purple) 12%, var(--bg));
   color: #ddd4ff; font-weight: 650;
 }
+
+
+.jump-btn--sky { border-color: var(--sky); background: color-mix(in srgb, var(--sky) 10%, var(--bg)); color: #d3effd; }
+
+
+/* ---------- TRIP HISTORY & SUMMARY (history.js) ---------- */
+.history { margin-top: 40px; }
+.history__title { font-size: 1.5rem; font-weight: 750; line-height: 1.2; color: var(--sky); }
+.history__intro { margin-top: 6px; font-size: 0.92rem; color: var(--muted); max-width: 60ch; }
+.history__period-label { margin-top: 4px; font-size: 0.86rem; color: var(--muted); }
+
+/* Period filter buttons */
+.periods { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.period {
+  min-height: 40px; padding: 0 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  font-size: 0.86rem; font-weight: 600; color: var(--text-soft);
+}
+.period[aria-pressed="true"] { border-color: var(--sky); color: var(--sky); background: color-mix(in srgb, var(--sky) 12%, var(--bg)); }
+
+.range { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.range[hidden] { display: none; }
+.range__field input {
+  width: 100%; min-height: 44px; margin-top: 4px; padding: 0 10px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  font: inherit; color-scheme: dark;
+}
+
+/* Summary tiles */
+.summary { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.summary__tile { padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; }
+.summary__value { display: block; font-size: 1.45rem; font-weight: 750; line-height: 1.15; color: var(--tone); font-variant-numeric: tabular-nums; }
+.summary__label { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--muted); }
+.summary + .highlights:not(:empty) { margin-top: 12px; }
+
+/* Saved rides: each row opens to show the full stats */
+.rides { margin-top: 10px; display: grid; gap: 8px; }
+.ride { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; }
+.ride[open] { border-color: var(--sky); }
+.ride__row { display: flex; align-items: center; gap: 12px; padding: 12px; cursor: pointer; list-style: none; }
+.ride__row::-webkit-details-marker { display: none; }
+.ride__words { flex: 1; min-width: 0; }
+.ride__when { display: block; font-size: 0.95rem; font-weight: 650; }
+.ride__meta { display: block; font-size: 0.8rem; color: var(--muted); }
+.ride__score {
+  flex: none; min-width: 48px; padding: 6px 8px; text-align: center;
+  border: 1.5px solid var(--sky); border-radius: 12px;
+  font-size: 1.15rem; font-weight: 750; color: var(--sky); font-variant-numeric: tabular-nums;
+}
+.ride__body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+.ride__group { margin-top: 16px; font-size: 0.86rem; font-weight: 700; color: var(--tone, var(--text)); }
+.ride__notes, .ride__id { margin-top: 6px; font-size: 0.82rem; color: var(--muted); }
+.ride__id { word-break: break-all; }
+
+/* Two-column "name: value" lists inside a ride */
+.facts { margin: 8px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: 0.88rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+
+/* Moment timeline: one card per thing the sensors noticed.
+   The left edge shows the level: coral = sharp, amber = firm,
+   purple = road surface, mint = praise. */
+.timeline { margin-top: 10px; display: grid; gap: 8px; }
+.timeline__key { margin-top: 6px; font-size: 0.78rem; color: var(--muted); }
+.moment {
+  padding: 10px 12px; background: var(--bg);
+  border: 1px solid var(--line); border-left: 3px solid var(--tone, var(--muted));
+  border-radius: 12px;
+}
+.moment[data-level="sharp"] { --tone: var(--coral); }
+.moment[data-level="firm"]  { --tone: var(--amber); }
+.moment[data-level="road"]  { --tone: var(--purple); }
+.moment[data-level="good"]  { --tone: var(--mint); }
+.moment__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.moment__label { font-size: 0.95rem; font-weight: 700; color: var(--tone); }
+.moment__time { flex: none; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.moment__what { margin-top: 4px; font-size: 0.9rem; color: var(--text); }
+.moment__why, .moment__tip { margin-top: 4px; font-size: 0.82rem; line-height: 1.45; color: var(--text-soft); }
+.moment__why strong, .moment__tip strong { color: var(--text); font-weight: 650; }
+/* Tips are for reading when parked */
+body[data-driving="true"] .dash .moment__tip { display: none; }
+
+/* Tap-to-teach feedback: answer buttons, an optional note, and the result line */
+.feedback { margin-top: 10px; }
+.feedback__buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.feedback__btn {
+  min-height: 40px; padding: 4px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  font-size: 0.82rem; font-weight: 600; color: var(--text-soft); text-align: left;
+}
+.feedback__btn[aria-pressed="true"] { border-color: var(--sky); color: var(--sky); background: color-mix(in srgb, var(--sky) 14%, var(--bg)); }
+.feedback__note {
+  width: 100%; min-height: 40px; margin-top: 8px; padding: 0 10px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 0.86rem;
+}
+.feedback__note::placeholder { color: var(--muted); }
+.feedback__result { margin-top: 6px; font-size: 0.82rem; color: var(--mint); }
+.feedback__result:empty { display: none; }
+
+/* Learned calibration panel */
+.facts dd.is-learned { color: var(--sky); }
+.action-btn.action-btn--sky { border-color: var(--sky); color: #d3effd; background: color-mix(in srgb, var(--sky) 12%, var(--bg)); padding: 0 14px; }
+.report {
+  width: 100%; margin-top: 10px; padding: 10px;
+  background: var(--bg); color: var(--text-soft);
+  border: 1px solid var(--line); border-radius: 10px;
+  font-family: ui-monospace, "Roboto Mono", monospace; font-size: 0.74rem; line-height: 1.5;
+  white-space: pre; overflow: auto;
+}
+.report[hidden] { display: none; }
+
+/* Delete buttons and their "are you sure?" question */
+.confirm { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.confirm--end { justify-content: flex-end; }
+.confirm:empty { display: none; }
+.confirm__text { flex-basis: 100%; font-size: 0.88rem; color: var(--text); }
+.danger-btn {
+  min-height: 40px; padding: 0 14px;
+  background: transparent; border: 1px solid var(--coral); border-radius: 10px;
+  font-size: 0.86rem; font-weight: 600; color: var(--coral);
+}
+.danger-btn--solid { background: var(--coral); color: #3d0914; }
+.confirm .ghost-btn { min-height: 40px; }
 
 
 /* ---------- 4. PIT-STOP ---------- */
@@ -331,8 +503,23 @@ body[data-driving="true"] .pit-warning { display: block; }
 
 /* ---------- 5. BIG SCREENS and REDUCED MOTION ---------- */
 
+/* Small phones held upright: give everything a little more room */
+@media (max-width: 359px) {
+  .shell { padding-left: 12px; padding-right: 12px; }
+  .panel { padding: 12px; }
+  .brand__name { font-size: 1.15rem; }
+  .mode__body { padding: 10px; }
+  .mode__desc { display: none; }
+  .hero { gap: 12px; }
+  .ring { width: 104px; height: 104px; }
+  .ring__num { font-size: 2rem; }
+  .live__num, body[data-driving="true"] .live__num { font-size: 1.5rem; }
+  .pit-nav { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+}
+
 /* Tablets, laptops, or a phone turned sideways: use the extra width */
 @media (min-width: 640px) {
+  .summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .group__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .group__grid > :last-child:nth-child(odd) { grid-column: auto; }
   .highlights { grid-template-columns: 1fr 1fr; }
