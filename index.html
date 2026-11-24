@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<!--
+  DrivePulse - index.html  (Phase 1: Visual & Playful Foundation)
+
+  This file is the SKELETON of the app. It only says WHAT is on the page
+  (a header, buttons, a log, a dashboard, the Pit-Stop section).
+
+  - How things LOOK lives in styles.css
+  - How the dashboard BEHAVES lives in app.js
+  - How the Pit-Stop cards BEHAVE lives in playful.js
+
+  Anything with an id="..." is a "hook" that a script grabs on to.
+  Empty containers (like #metric-groups) are filled in by the scripts.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Makes the page fit a phone screen instead of a zoomed-out desktop page -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Colours Android Chrome's top bar to match the app -->
+  <meta name="theme-color" content="#0b0f17">
+  <title>DrivePulse</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<!--
+  The two data-... notes on <body> are tiny "signs" the scripts update:
+    data-driving = "true" or "false"   (is a drive running?)
+    data-mode    = "passive" or "vision"
+  styles.css reads these signs to change colours. That way the files
+  cooperate without needing to know about each other's code.
+-->
+<body data-driving="false" data-mode="passive">
+  <main class="shell">
+
+    <!-- ===================== THE DASH (main screen) ===================== -->
+    <div id="dash" class="dash" tabindex="-1">
+
+      <header class="topbar">
+        <div class="brand">
+          <svg class="brand__mark" viewBox="0 0 48 24" aria-hidden="true">
+            <path d="M1 13h9l4-9 7 17 5-12 3 4h18"/>
+          </svg>
+          <h1 class="brand__name">DrivePulse</h1>
+        </div>
+        <p class="pill" id="drive-pill">
+          <span class="pill__dot" aria-hidden="true"></span>
+          <span id="drive-pill-text">Parked</span>
+        </p>
+      </header>
+
+      <!-- ---------- Drive setup: mode selector + Start/Stop ---------- -->
+      <section class="panel" aria-labelledby="setup-title">
+        <h2 id="setup-title" class="panel__title">Drive setup</h2>
+
+        <fieldset class="modes" id="mode-selector">
+          <legend class="label">Where is the phone?</legend>
+
+          <label class="mode" data-tone="sky">
+            <input type="radio" name="mode" value="passive" checked>
+            <span class="mode__body">
+              <span class="mode__name">Passive</span>
+              <span class="mode__where">Console</span>
+              <span class="mode__desc">Phone lies flat and feels the car's motion.</span>
+            </span>
+          </label>
+
+          <label class="mode" data-tone="purple">
+            <input type="radio" name="mode" value="vision">
+            <span class="mode__body">
+              <span class="mode__name">Vision</span>
+              <span class="mode__where">Windshield</span>
+              <span class="mode__desc">Phone on a mount. The camera adds road awareness later.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="drive-row">
+          <button type="button" id="drive-btn" class="drive-btn" aria-pressed="false">Start Drive</button>
+          <div class="timer">
+            <span class="label">Trip time</span>
+            <span id="trip-time" class="timer__num">0:00</span>
+          </div>
+        </div>
+
+        <p class="note">Set up while parked. Once you roll, eyes on the road. DrivePulse keeps score quietly.</p>
+      </section>
+
+      <!-- ---------- Status log: plain-language messages ---------- -->
+      <section class="panel" aria-labelledby="log-title">
+        <div class="panel__head">
+          <h2 id="log-title" class="panel__title">Status log</h2>
+          <button type="button" id="log-clear" class="ghost-btn">Clear log</button>
+        </div>
+        <!-- app.js adds one <li> per message, newest on top -->
+        <ol id="log" class="log" role="log" aria-label="Status messages"></ol>
+      </section>
+
+      <!-- ---------- Dashboard: Drive Score + all the metrics ---------- -->
+      <section class="panel" aria-labelledby="dash-title">
+        <div class="panel__head">
+          <h2 id="dash-title" class="panel__title">Dashboard</h2>
+          <span class="tag">Demo values, no sensors yet</span>
+        </div>
+
+        <div class="hero">
+          <div class="ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring__track" cx="60" cy="60" r="52"/>
+              <circle class="ring__fill" id="score-ring" cx="60" cy="60" r="52"/>
+            </svg>
+            <div class="ring__center">
+              <span id="score-num" class="ring__num">0</span>
+              <span class="ring__label">Drive Score</span>
+            </div>
+          </div>
+          <div class="hero__side">
+            <p id="score-word" class="hero__word">Ready</p>
+            <p class="hero__text">One number that blends the scores below. Tap "Why it matters" on any tile to see what it rewards.</p>
+          </div>
+        </div>
+
+        <!-- app.js builds the metric tiles in here, group by group -->
+        <div id="metric-groups"></div>
+
+        <div class="group" data-tone="amber">
+          <h3 class="group__title">Highlight moments</h3>
+          <ul id="highlights" class="highlights"></ul>
+        </div>
+      </section>
+
+      <button type="button" class="jump-btn" data-action="go-pitstop">↓ Playful Pit-Stop &amp; Insights</button>
+    </div>
+
+    <!-- ===================== PLAYFUL PIT-STOP ===================== -->
+    <section id="pitstop" class="pitstop" aria-labelledby="pit-title" tabindex="-1">
+      <header class="pitstop__head">
+        <h2 id="pit-title" class="pitstop__title">Playful Pit-Stop &amp; Insights</h2>
+        <p class="pitstop__intro">Short cards to read while parked: tips, mini challenges and road trivia. Scroll through, jump to one, or shuffle the deck.</p>
+      </header>
+
+      <!-- Hidden normally. styles.css shows it when body says data-driving="true" -->
+      <p class="pit-warning">A drive is running. Save these for when you're parked.</p>
+
+      <!-- This bar sticks to the top of the screen while you read the cards -->
+      <nav id="pit-nav" class="pit-nav" aria-label="Pit-Stop cards">
+        <!-- playful.js adds one quick-jump button per card in here -->
+        <div id="pit-chips" class="chips"></div>
+        <div class="pit-nav__actions">
+          <button type="button" id="pit-shuffle" class="action-btn action-btn--purple">Shuffle cards</button>
+          <button type="button" class="action-btn" data-action="back-to-dash">↑ Back to Dash</button>
+        </div>
+      </nav>
+
+      <!-- Screen readers hear shuffle results announced from here -->
+      <p id="pit-announce" class="sr-only" aria-live="polite"></p>
+
+      <!-- playful.js builds the cards in here -->
+      <div id="pit-cards" class="cards"></div>
+
+      <button type="button" class="jump-btn" data-action="back-to-dash">↑ Back to Dash</button>
+    </section>
+  </main>
+
+  <footer class="footer">Phase 1: Visual &amp; Playful Foundation. No GPS or camera code yet.</footer>
+
+  <!--
+    Scripts load last. "defer" means: wait until the page above is ready.
+    Later phases add more lines here (sensors.js, vision.js, report.js...).
+    Removing a line removes that feature without touching the others.
+  -->
+  <script src="playful.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

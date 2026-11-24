@@ -1,0 +1,347 @@
+/* =========================================================
+   DrivePulse - styles.css  (Phase 1)
+
+   This file controls how everything LOOKS. No behaviour here.
+
+   How to read it:
+   1. THEME      - every colour and size lives here, in one place
+   2. BASICS     - page-wide defaults
+   3. DASH       - header, setup panel, log, dashboard, metric tiles
+   4. PIT-STOP   - sticky jump bar and the playful cards
+   5. BIG SCREENS and REDUCED MOTION
+
+   Want a different look? Change the values in section 1 and the
+   whole app follows.
+   ========================================================= */
+
+
+/* ---------- 1. THEME ---------- */
+:root {
+  /* Backgrounds */
+  --bg: #0b0f17;        /* the page itself */
+  --surface: #131a26;   /* panels and cards sitting on the page */
+  --line: #253147;      /* thin borders */
+
+  /* Text */
+  --text: #e8eef8;
+  --text-soft: #c6d0e0;
+  --muted: #93a1b8;
+
+  /* The five accent colours. Each one has a job on the dashboard:
+     mint = smooth inputs, sky = flow, purple = composure / playful,
+     amber = awareness and highlights, coral = watch-outs. */
+  --sky: #38bdf8;
+  --mint: #34d399;
+  --amber: #fbbf24;
+  --coral: #fb7185;
+  --purple: #a78bfa;
+
+  --radius: 16px;
+  --gap: 14px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* "Tones": add data-tone="mint" (etc.) to any element in the HTML and
+   everything inside can use var(--tone) to pick up that colour. */
+[data-tone="sky"]    { --tone: var(--sky); }
+[data-tone="mint"]   { --tone: var(--mint); }
+[data-tone="amber"]  { --tone: var(--amber); }
+[data-tone="coral"]  { --tone: var(--coral); }
+[data-tone="purple"] { --tone: var(--purple); }
+
+
+/* ---------- 2. BASICS ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p, ol, ul, fieldset { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+fieldset { border: 0; min-width: 0; }
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A clear outline when moving around with a keyboard */
+:focus-visible { outline: 2px solid var(--sky); outline-offset: 3px; }
+[tabindex="-1"]:focus { outline: none; }
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+}
+
+/* Small caption text used above groups of controls */
+.label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+
+/* Visible to screen readers only */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+
+/* ---------- 3. DASH ---------- */
+
+/* Header */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 2px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand__mark { width: 46px; height: 23px; fill: none; stroke: var(--sky); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.brand__name { font-size: 1.35rem; font-weight: 750; letter-spacing: -0.01em; }
+
+/* Parked / Driving pill */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 0.85rem; font-weight: 600; color: var(--muted);
+}
+.pill__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+body[data-driving="true"] .pill { color: var(--mint); border-color: var(--mint); }
+body[data-driving="true"] .pill__dot { background: var(--mint); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+/* Panels: the boxes that hold each part of the dash */
+.panel {
+  margin-top: var(--gap);
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.panel__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.panel__title { font-size: 1.05rem; font-weight: 700; }
+
+.tag {
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px dashed var(--amber); color: var(--amber);
+  font-size: 0.75rem; font-weight: 600;
+}
+
+.ghost-btn {
+  min-height: 36px; padding: 0 12px;
+  background: transparent; border: 1px solid var(--line); border-radius: 10px;
+  font-size: 0.82rem; color: var(--muted);
+}
+
+/* Mode selector: two big tappable choices.
+   The real radio button is hidden; the box next to it changes
+   colour when that radio is checked. */
+.modes { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modes legend { margin-bottom: 8px; }
+.mode { position: relative; display: block; }
+.mode input { position: absolute; inset: 0; opacity: 0; }
+.mode__body {
+  display: block; height: 100%; padding: 12px;
+  background: var(--bg); border: 1.5px solid var(--line); border-radius: 14px;
+}
+.mode__name { display: block; font-size: 1.05rem; font-weight: 700; }
+.mode__where { display: block; font-size: 0.82rem; font-weight: 600; color: var(--tone); }
+.mode__desc { display: block; margin-top: 6px; font-size: 0.8rem; line-height: 1.35; color: var(--muted); }
+.mode input:checked + .mode__body {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 10%, var(--bg));
+}
+.mode input:focus-visible + .mode__body { outline: 2px solid var(--sky); outline-offset: 3px; }
+.mode input:disabled + .mode__body { opacity: 0.55; }
+
+/* Start / Stop row */
+.drive-row { margin-top: 14px; display: flex; align-items: center; gap: 14px; }
+.drive-btn {
+  flex: 1; min-height: 58px; padding: 0 16px;
+  border: 0; border-radius: 14px;
+  background: var(--mint); color: #05291c;
+  font-size: 1.1rem; font-weight: 750;
+}
+.drive-btn:active { transform: scale(0.985); }
+body[data-driving="true"] .drive-btn { background: var(--coral); color: #3d0914; }
+.timer { text-align: right; min-width: 84px; }
+.timer__num { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+
+.note { margin-top: 12px; font-size: 0.82rem; color: var(--muted); }
+
+/* Status log */
+.log {
+  margin-top: 10px; max-height: 176px; overflow-y: auto;
+  padding: 2px 12px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.log__item { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; font-size: 0.86rem; color: var(--text-soft); }
+.log__item + .log__item { border-top: 1px solid var(--line); }
+.log__item::before {
+  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--tone, var(--sky)); transform: translateY(-1px);
+}
+.log__item time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Message colours: the dot tells you the kind of message at a glance */
+.log__item[data-type="info"]  { --tone: var(--sky); }
+.log__item[data-type="good"]  { --tone: var(--mint); }
+.log__item[data-type="warn"]  { --tone: var(--amber); }
+.log__item[data-type="alert"] { --tone: var(--coral); }
+.log__item[data-type="fun"]   { --tone: var(--purple); }
+
+/* Drive Score ring */
+.hero { margin-top: 14px; display: flex; align-items: center; gap: 16px; }
+.ring { position: relative; flex: none; width: 128px; height: 128px; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring__track, .ring__fill { fill: none; stroke-width: 9; }
+.ring__track { stroke: var(--line); }
+.ring__fill {
+  stroke: var(--sky); stroke-linecap: round;
+  stroke-dasharray: 326.73;      /* the length of the circle's outline */
+  stroke-dashoffset: 326.73;     /* app.js shrinks this to "fill" the ring */
+  transition: stroke-dashoffset 0.6s ease;
+}
+.ring__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring__num { font-size: 2.5rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
+.ring__label { margin-top: 4px; font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.hero__word { font-size: 1.3rem; font-weight: 700; color: var(--sky); line-height: 1.2; }
+.hero__text { margin-top: 6px; font-size: 0.85rem; color: var(--muted); }
+
+/* Metric groups and tiles */
+.group { margin-top: 22px; }
+.group__title { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; font-weight: 700; color: var(--tone); }
+.group__title::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--tone); }
+.group__grid { margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+/* On a phone, a leftover third tile stretches across the row instead of sitting alone */
+.group__grid > :last-child:nth-child(odd) { grid-column: span 2; }
+
+.metric { padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; }
+.metric__name { font-size: 0.86rem; font-weight: 650; line-height: 1.25; }
+.metric__value { margin-top: 6px; display: flex; align-items: baseline; gap: 3px; }
+.metric__num { font-size: 1.8rem; font-weight: 750; line-height: 1.1; color: var(--tone); font-variant-numeric: tabular-nums; }
+.metric__unit { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.metric__hint { margin-top: 2px; font-size: 0.76rem; line-height: 1.35; color: var(--muted); }
+
+.meter { margin-top: 9px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.meter__fill { height: 100%; width: 0; border-radius: 3px; background: var(--tone); transition: width 0.6s ease; }
+
+.metric__why { margin-top: 8px; }
+.metric__why summary { padding: 4px 0; font-size: 0.78rem; font-weight: 600; color: var(--text-soft); cursor: pointer; }
+.metric__why p { margin-top: 4px; font-size: 0.8rem; line-height: 1.45; color: var(--text-soft); }
+
+/* A camera-only metric while Passive mode is selected */
+.metric.is-locked { border-style: dashed; }
+.metric.is-locked .metric__num { color: var(--muted); }
+.metric.is-locked .meter { display: none; }
+
+/* Highlight moments */
+.highlights { margin-top: 10px; display: grid; gap: 8px; }
+.highlight { display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.highlight__emoji { font-size: 1.4rem; line-height: 1; }
+.highlight__title { font-size: 0.88rem; font-weight: 650; }
+.highlight__text { font-size: 0.8rem; color: var(--muted); }
+
+/* Big full-width jump buttons (down to Pit-Stop, up to Dash) */
+.jump-btn {
+  display: block; width: 100%; min-height: 54px; margin-top: var(--gap);
+  border: 1.5px solid var(--purple); border-radius: 14px;
+  background: color-mix(in srgb, var(--purple) 12%, var(--bg));
+  color: #ddd4ff; font-weight: 650;
+}
+
+
+/* ---------- 4. PIT-STOP ---------- */
+.pitstop { margin-top: 40px; }
+.pitstop__title { font-size: 1.5rem; font-weight: 750; line-height: 1.2; color: var(--purple); }
+.pitstop__intro { margin-top: 6px; font-size: 0.92rem; color: var(--muted); max-width: 60ch; }
+
+.pit-warning {
+  display: none; margin-top: 12px; padding: 10px 12px;
+  border: 1px solid var(--amber); border-radius: 12px;
+  color: var(--amber); font-size: 0.88rem; font-weight: 600;
+}
+body[data-driving="true"] .pit-warning { display: block; }
+
+/* The bar that stays pinned to the top while you scroll the cards */
+.pit-nav {
+  position: sticky; top: 0; z-index: 5;
+  margin: 12px -16px 0; padding: 10px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+/* Quick-jump buttons: one row you can swipe sideways */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 40px; padding: 0 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  font-size: 0.84rem; white-space: nowrap;
+}
+.chip:active { border-color: var(--tone); }
+
+.pit-nav__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-btn {
+  min-height: 44px; padding: 0 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  font-size: 0.9rem; font-weight: 650;
+}
+.action-btn--purple { border-color: var(--purple); color: #ddd4ff; background: color-mix(in srgb, var(--purple) 14%, var(--bg)); }
+
+/* The cards */
+.cards { margin-top: 16px; display: grid; gap: 14px; }
+.card {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line); border-left: 3px solid var(--tone);
+  border-radius: var(--radius);
+  /* Leaves room for the sticky bar when a quick-jump lands on this card */
+  scroll-margin-top: 128px;
+}
+.card__top { display: flex; align-items: center; justify-content: space-between; }
+.card__emoji { font-size: 1.9rem; line-height: 1; }
+.card__kind {
+  padding: 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  color: var(--tone); font-size: 0.76rem; font-weight: 650;
+}
+.card__title { margin-top: 10px; font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
+.card__body { margin-top: 6px; font-size: 0.95rem; color: var(--text-soft); }
+.card__try {
+  margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--tone) 9%, var(--bg));
+  font-size: 0.88rem; color: var(--text);
+}
+.card__try strong { color: var(--tone); }
+.card__back { margin-top: 12px; display: flex; justify-content: flex-end; }
+
+/* A brief glow so you can see which card a quick-jump landed on */
+.card.is-flash { animation: flash 1.4s ease-out; }
+@keyframes flash {
+  0%, 40% { box-shadow: 0 0 0 2px var(--tone); }
+  100%    { box-shadow: 0 0 0 2px transparent; }
+}
+
+.footer { padding: 8px 16px 28px; text-align: center; font-size: 0.78rem; color: var(--muted); }
+
+
+/* ---------- 5. BIG SCREENS and REDUCED MOTION ---------- */
+
+/* Tablets, laptops, or a phone turned sideways: use the extra width */
+@media (min-width: 640px) {
+  .group__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .group__grid > :last-child:nth-child(odd) { grid-column: auto; }
+  .highlights { grid-template-columns: 1fr 1fr; }
+  .cards { grid-template-columns: 1fr 1fr; align-items: start; }
+  .pit-nav { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+}
+
+/* Some people turn animations off in their phone settings. Respect that. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
